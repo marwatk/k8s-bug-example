@@ -3,6 +3,8 @@
 set -e
 
 NAMESPACE=kill-vpnkit
+KUBE_ARGS="--certificate-authority /run/secrets/kubernetes.io/serviceaccount/ca.crt --token $(cat /run/secrets/kubernetes.io/serviceaccount/token) --server https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT_HTTPS"
+
 LOOP_COUNT=0
 
 while true; do
@@ -11,12 +13,12 @@ while true; do
   kubectl version
 
   set +e
-  kubectl delete namespace $NAMESPACE > /dev/null 2>&1
-  kubectl delete pv $NAMESPACE-pv > /dev/null 2>&1
+  kubectl $KUBE_ARGS delete namespace $NAMESPACE > /dev/null 2>&1
+  kubectl $KUBE_ARGS delete pv $NAMESPACE-pv > /dev/null 2>&1
   set -e
 
   NAMESPACE_COUNT=0
-  while kubectl get namespace $NAMESPACE > /dev/null 2>&1; do
+  while kubectl $KUBE_ARGS get namespace $NAMESPACE > /dev/null 2>&1; do
     ((++NAMESPACE_COUNT))
     echo "Waiting for namespace to delete ($NAMESPACE_COUNT)"
     if [ "$NAMESPACE_COUNT" == 30 ]; then
@@ -26,8 +28,7 @@ while true; do
     sleep 1
   done
 
-
-  kubectl create -f - <<EOF
+  kubectl $KUBE_ARGS create -f - <<EOF
     kind: Namespace
     apiVersion: v1
     metadata:
@@ -36,7 +37,7 @@ while true; do
         name: $NAMESPACE
 EOF
 
-  kubectl create -n $NAMESPACE -f - <<EOF
+  kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -58,7 +59,7 @@ EOF
             - containerPort: 80
 EOF
 
-  kubectl create -n $NAMESPACE -f - <<EOF
+  kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
       apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
@@ -75,7 +76,7 @@ EOF
 EOF
 
 
-    kubectl create -f - <<EOF
+    kubectl $KUBE_ARGS create -f - <<EOF
       apiVersion: v1
       kind: PersistentVolume
       metadata:
@@ -92,7 +93,7 @@ EOF
         storageClassName: hostpath
 EOF
 
-    kubectl create -n $NAMESPACE -f - <<EOF
+    kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
       kind: ConfigMap
       apiVersion: v1
       metadata:
@@ -101,7 +102,7 @@ EOF
         foo: SGVsbG8gd29ybGQ=
 EOF
 
-    kubectl create -n $NAMESPACE -f - <<EOF
+    kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
       kind: Secret
       apiVersion: v1
       metadata:
@@ -116,7 +117,7 @@ EOF
     echo -n "[$POD_COUNT] pod foo-deployment: "
 
     set +e
-    PHASE=$(kubectl -n $NAMESPACE get pod -l "app=nginx" -o "jsonpath={.items[0].status.phase}")
+    PHASE=$(kubectl $KUBE_ARGS -n $NAMESPACE get pod -l "app=nginx" -o "jsonpath={.items[0].status.phase}")
     set -e
     if [ "$?" == "0" ]; then
       echo "Phase is [$PHASE]"
@@ -136,8 +137,8 @@ EOF
   done
 
   set +e
-  kubectl delete namespace $NAMESPACE > /dev/null 2>&1
-  kubectl delete pv $NAMESPACE-pv > /dev/null 2>&1
+  kubectl $KUBE_ARGS delete namespace $NAMESPACE > /dev/null 2>&1
+  kubectl $KUBE_ARGS delete pv $NAMESPACE-pv > /dev/null 2>&1
   set -e
 
 done
