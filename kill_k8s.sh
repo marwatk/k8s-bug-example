@@ -28,6 +28,11 @@ while true; do
     sleep 1
   done
 
+  if [ "$LOOP_COUNT" == 2 ]; then
+    echo "Inner test finished"
+    exit 0
+  fi
+
   kubectl $KUBE_ARGS create -f - <<EOF
     kind: Namespace
     apiVersion: v1
@@ -137,7 +142,9 @@ EOF
   done
 
   set +e
+  echo "Deleting namespace"
   kubectl $KUBE_ARGS delete namespace $NAMESPACE > /dev/null 2>&1
+  echo "Deleting pv"
   kubectl $KUBE_ARGS delete pv $NAMESPACE-pv > /dev/null 2>&1
   set -e
 
