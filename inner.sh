@@ -2,7 +2,7 @@
 
 set -e
 
-NAMESPACE=kill-vpnkit
+NAMESPACE=k8s-bug-inner
 KUBE_ARGS="--certificate-authority /run/secrets/kubernetes.io/serviceaccount/ca.crt --token $(cat /run/secrets/kubernetes.io/serviceaccount/token) --server https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT_HTTPS"
 
 LOOP_COUNT=0

@@ -3,7 +3,8 @@
 set -e
 
 OUTER_NAMESPACE=k8s-bug-outer
-docker build . -t kill-vpnkit
+IMAGE_NAME=k8s-bug
+docker build . -t $IMAGE_NAME
 
 OUTER_LOOP=0
 while true; do
@@ -26,5 +27,9 @@ while true; do
 
   kubectl create namespace $OUTER_NAMESPACE
 
-  kubectl -n $OUTER_NAMESPACE run kill-vpnkit -it --image kill-vpnkit --restart Never --command -- sh /usr/local/bin/kill_k8s.sh
+  kubectl -n $OUTER_NAMESPACE run $IMAGE_NAME -it --image $IMAGE_NAME --restart Never --command -- sh /usr/local/bin/inner.sh
+
+  set +e
+  kubectl delete namespace $OUTER_NAMESPACE >/dev/null 2>&1
+  set -e
 done
