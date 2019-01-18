@@ -2,6 +2,7 @@
 
 set -e
 
+NAMESPACE=kill-vpnkit
 LOOP_COUNT=0
 
 while true; do
@@ -10,14 +11,15 @@ while true; do
   kubectl version
 
   set +e
-  kubectl delete namespace eventually-fail
+  kubectl delete namespace $NAMESPACE > /dev/null 2>&1
+  kubectl delete pv $NAMESPACE-pv > /dev/null 2>&1
   set -e
 
   NAMESPACE_COUNT=0
-  while kubectl get namespace eventually-fail > /dev/null 2>&1; do
+  while kubectl get namespace $NAMESPACE > /dev/null 2>&1; do
     ((++NAMESPACE_COUNT))
     echo "Waiting for namespace to delete ($NAMESPACE_COUNT)"
-    if [ "$NAMESPACE_COUNT" == 20 ]; then
+    if [ "$NAMESPACE_COUNT" == 30 ]; then
       echo "Namespace never deleted"
       exit 1
     fi
@@ -26,36 +28,87 @@ while true; do
 
 
   kubectl create -f - <<EOF
-kind: Namespace
-apiVersion: v1
-metadata:
-  name: eventually-fail
-  labels:
-    name: eventually-fail
-EOF
-
-    kubectl create -n eventually-fail -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: nginx
-  template:
+    kind: Namespace
+    apiVersion: v1
     metadata:
+      name: $NAMESPACE
       labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1.7.9
-        ports:
-        - containerPort: 80
+        name: $NAMESPACE
 EOF
 
+  kubectl create -n $NAMESPACE -f - <<EOF
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: nginx-deployment
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: nginx
+      template:
+        metadata:
+          labels:
+            app: nginx
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.7.9
+            ports:
+            - containerPort: 80
+EOF
+
+  kubectl create -n $NAMESPACE -f - <<EOF
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: test-pvc
+        labels:
+          name: test-pvc
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Mi
+        storageClassName: hostpath
+EOF
+
+
+    kubectl create -f - <<EOF
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: "$NAMESPACE-pv"
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        capacity:
+          storage: 100Mi
+        hostPath:
+          path: "/tmp"
+          type: DirectoryOrCreate
+        persistentVolumeReclaimPolicy: Delete
+        storageClassName: hostpath
+EOF
+
+    kubectl create -n $NAMESPACE -f - <<EOF
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: test-config
+      data:
+        foo: SGVsbG8gd29ybGQ=
+EOF
+
+    kubectl create -n $NAMESPACE -f - <<EOF
+      kind: Secret
+      apiVersion: v1
+      metadata:
+        name: test-secret
+      data:
+        foo: SGVsbG8gd29ybGQ=
+EOF
 
   POD_COUNT=0
   while true; do
@@ -63,7 +116,7 @@ EOF
     echo -n "[$POD_COUNT] pod foo-deployment: "
 
     set +e
-    PHASE=$(kubectl -n eventually-fail get pod -l "app=nginx" -o "jsonpath={.items[0].status.phase}")
+    PHASE=$(kubectl -n $NAMESPACE get pod -l "app=nginx" -o "jsonpath={.items[0].status.phase}")
     set -e
     if [ "$?" == "0" ]; then
       echo "Phase is [$PHASE]"
@@ -81,5 +134,10 @@ EOF
 
     sleep 1
   done
+
+  set +e
+  kubectl delete namespace $NAMESPACE > /dev/null 2>&1
+  kubectl delete pv $NAMESPACE-pv > /dev/null 2>&1
+  set -e
 
 done
