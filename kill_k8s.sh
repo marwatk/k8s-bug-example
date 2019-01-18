@@ -14,7 +14,6 @@ while true; do
 
   set +e
   kubectl $KUBE_ARGS delete namespace $NAMESPACE > /dev/null 2>&1
-  kubectl $KUBE_ARGS delete pv $NAMESPACE-pv > /dev/null 2>&1
   set -e
 
   NAMESPACE_COUNT=0
@@ -64,57 +63,6 @@ EOF
             - containerPort: 80
 EOF
 
-  kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
-      apiVersion: v1
-      kind: PersistentVolumeClaim
-      metadata:
-        name: test-pvc
-        labels:
-          name: test-pvc
-      spec:
-        accessModes:
-        - ReadWriteOnce
-        resources:
-          requests:
-            storage: 100Mi
-        storageClassName: hostpath
-EOF
-
-
-    kubectl $KUBE_ARGS create -f - <<EOF
-      apiVersion: v1
-      kind: PersistentVolume
-      metadata:
-        name: "$NAMESPACE-pv"
-      spec:
-        accessModes:
-        - ReadWriteOnce
-        capacity:
-          storage: 100Mi
-        hostPath:
-          path: "/tmp"
-          type: DirectoryOrCreate
-        persistentVolumeReclaimPolicy: Delete
-        storageClassName: hostpath
-EOF
-
-    kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
-      kind: ConfigMap
-      apiVersion: v1
-      metadata:
-        name: test-config
-      data:
-        foo: SGVsbG8gd29ybGQ=
-EOF
-
-    kubectl $KUBE_ARGS create -n $NAMESPACE -f - <<EOF
-      kind: Secret
-      apiVersion: v1
-      metadata:
-        name: test-secret
-      data:
-        foo: SGVsbG8gd29ybGQ=
-EOF
 
   POD_COUNT=0
   while true; do
@@ -144,8 +92,6 @@ EOF
   set +e
   echo "Deleting namespace"
   kubectl $KUBE_ARGS delete namespace $NAMESPACE > /dev/null 2>&1
-  echo "Deleting pv"
-  kubectl $KUBE_ARGS delete pv $NAMESPACE-pv > /dev/null 2>&1
   set -e
 
 done
